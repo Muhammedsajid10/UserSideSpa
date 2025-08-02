@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
-import "./ProfessionalSelection.css";
+import "./ProfessionalSelection.css"; // This CSS file for SelectProfessional
 import { FaStar } from "react-icons/fa";
 import { bookingsAPI, apiUtils, bookingFlow } from "../services/api";
 import { useNavigate } from "react-router-dom";
+import Skeleton from 'react-loading-skeleton';
+import 'react-loading-skeleton/dist/skeleton.css';
 
 const SelectProfessional = () => {
   const [professionals, setProfessionals] = useState([]);
@@ -10,7 +12,7 @@ const SelectProfessional = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [selectedServices, setSelectedServices] = useState([]);
-  const [currentStep, setCurrentStep] = useState(2); // Step 2 for professional selection
+  const [currentStep] = useState(2); // Step 2 for professional selection
   const previousServicesRef = useRef([]);
 
   const navigate = useNavigate();
@@ -26,7 +28,6 @@ const SelectProfessional = () => {
 
     loadSelectedServices();
 
-    // Listen for changes in booking flow - only reload if services actually change
     const handleBookingFlowChange = () => {
       const currentServices = bookingFlow.selectedServices || [];
       const servicesChanged = JSON.stringify(currentServices) !== JSON.stringify(previousServicesRef.current);
@@ -56,15 +57,21 @@ const SelectProfessional = () => {
       setLoading(true);
       setError(null);
 
+      const anyProfessionalOption = {
+        id: "any",
+        name: "Any professional",
+        subtitle: "for maximum availability",
+        icon: "👥",
+        isAvailable: true,
+      };
+
       try {
-        // Use selected date from booking flow or today's date as fallback
         const data = bookingFlow.load();
         const selectedDate = data.selectedDate
           ? new Date(data.selectedDate)
           : new Date();
         const formattedDate = apiUtils.formatDate(selectedDate);
 
-        // Use the first service to get available professionals
         const firstService = selectedServices[0];
         console.log(
           "Fetching professionals for service:",
@@ -80,131 +87,33 @@ const SelectProfessional = () => {
 
         console.log("API response:", response);
 
-        if (response.success) {
-          // Check if we have professionals in the response
-          if (
-            response.results > 0 &&
-            response.data.professionals &&
-            response.data.professionals.length > 0
-          ) {
-            // Transform the API response to match our component structure
-            const transformedProfessionals = response.data.professionals.map(
-              (employee, index) => ({
-                id: employee._id,
-                name: `${employee.user.firstName} ${employee.user.lastName}`,
-                subtitle: employee.position,
-                letter: employee.user.firstName.charAt(0),
-                rating: employee.performance?.ratings?.average || 0,
-                employeeId: employee.employeeId,
-                specializations: employee.specializations || [],
-                image: null, // Add profile image if available
-                isAvailable: true,
-                // Store original employee data for booking flow
-                employee: employee,
-              })
-            );
-
-            // Add "Any professional" option at the beginning
-            const allProfessionals = [
-              {
-                id: "any",
-                name: "Any professional",
-                subtitle: "for maximum availability",
-                icon: "👥",
-                isAvailable: true,
-              },
-              ...transformedProfessionals,
-            ];
-
-            setProfessionals(allProfessionals);
-          } else {
-            // No professionals found, show fallback data
-            console.log(
-              "No professionals found in API response, showing fallback data"
-            );
-            showFallbackProfessionals();
-          }
+        if (response.success && response.data?.professionals?.length > 0) {
+          const transformedProfessionals = response.data.professionals.map(
+            (employee) => ({
+              id: employee._id,
+              name: `${employee.user.firstName} ${employee.user.lastName}`,
+              subtitle: employee.position,
+              letter: employee.user.firstName.charAt(0),
+              rating: employee.performance?.ratings?.average || 0,
+              employeeId: employee.employeeId,
+              specializations: employee.specializations || [],
+              image: null,
+              isAvailable: true,
+              employee: employee,
+            })
+          );
+          setProfessionals([anyProfessionalOption, ...transformedProfessionals]);
         } else {
-          // API call failed, show fallback data
-          console.log("API call failed, showing fallback data");
-          showFallbackProfessionals();
+          console.log("No specific professionals found for the selected criteria, displaying 'Any professional' option.");
+          setProfessionals([anyProfessionalOption]); 
         }
       } catch (err) {
         console.error("Error fetching professionals:", err);
-        setError(err.message);
-
-        // Show fallback data on error
-        console.log("Error occurred, showing fallback data");
-        showFallbackProfessionals();
+        setError("Failed to load professionals. Please try again.");
+        setProfessionals([anyProfessionalOption]); 
       } finally {
         setLoading(false);
       }
-    };
-
-    // Function to show fallback professionals for testing
-    const showFallbackProfessionals = () => {
-      const fallbackProfessionals = [
-        {
-          id: "any",
-          name: "Any professional",
-          subtitle: "for maximum availability",
-          icon: "👥",
-          isAvailable: true,
-        },
-        {
-          id: "sample1",
-          name: "Sarah Johnson",
-          subtitle: "Senior Therapist",
-          letter: "S",
-          rating: 4.8,
-          employeeId: "EMP001",
-          specializations: ["Massage Therapy", "Aromatherapy"],
-          image: null,
-          isAvailable: true,
-          employee: {
-            _id: "sample1",
-            user: { firstName: "Sarah", lastName: "Johnson" },
-            position: "Senior Therapist",
-            employeeId: "EMP001",
-          },
-        },
-        {
-          id: "sample2",
-          name: "Michael Chen",
-          subtitle: "Spa Specialist",
-          letter: "M",
-          rating: 4.9,
-          employeeId: "EMP002",
-          specializations: ["Facial Treatments", "Body Treatments"],
-          image: null,
-          isAvailable: true,
-          employee: {
-            _id: "sample2",
-            user: { firstName: "Michael", lastName: "Chen" },
-            position: "Spa Specialist",
-            employeeId: "EMP002",
-          },
-        },
-        {
-          id: "sample3",
-          name: "Emma Davis",
-          subtitle: "Wellness Coach",
-          letter: "E",
-          rating: 4.7,
-          employeeId: "EMP003",
-          specializations: ["Yoga Therapy", "Meditation"],
-          image: null,
-          isAvailable: true,
-          employee: {
-            _id: "sample3",
-            user: { firstName: "Emma", lastName: "Davis" },
-            position: "Wellness Coach",
-            employeeId: "EMP003",
-          },
-        },
-      ];
-
-      setProfessionals(fallbackProfessionals);
     };
 
     fetchProfessionals();
@@ -213,10 +122,8 @@ const SelectProfessional = () => {
   const handleProfessionalSelect = (professional) => {
     setSelectedId(professional.id);
 
-    // Save selected professional to booking flow using the new structure
     if (professional.id !== "any") {
-      // For sample professionals, create a proper structure
-      if (professional.id.startsWith("sample")) {
+      if (professional.id.startsWith("sample")) { // Keep this if you still have sample IDs from any source
         const professionalData = {
           id: professional.id,
           _id: professional.id,
@@ -225,19 +132,15 @@ const SelectProfessional = () => {
           position: professional.employee.position,
           employeeId: professional.employee.employeeId,
         };
-
-        // Assign this professional to all selected services
         bookingFlow.selectedServices.forEach((service) => {
           bookingFlow.addProfessional(service._id, professionalData);
         });
       } else {
-        // Assign this professional to all selected services
         bookingFlow.selectedServices.forEach((service) => {
           bookingFlow.addProfessional(service._id, professional.employee);
         });
       }
     } else {
-      // For "any professional", assign to all services
       const anyProfessional = { id: "any", name: "Any professional" };
       bookingFlow.selectedServices.forEach((service) => {
         bookingFlow.addProfessional(service._id, anyProfessional);
@@ -251,13 +154,22 @@ const SelectProfessional = () => {
     );
   };
 
+  // --- Render based on state: Loading, Error, No Services, or Content ---
+
   if (loading) {
+    const numberOfSkeletons = 6; 
     return (
       <div className="select-professional-container">
         <h2>Select professional</h2>
-        <div className="loading-container">
-          <div className="loading-spinner"></div>
-          <p>Loading available professionals...</p>
+        <div className="professional-grid">
+          {Array.from({ length: numberOfSkeletons }).map((_, index) => (
+            <div key={index} className="professional-card skeleton-card">
+              <Skeleton circle={true} height={60} width={60} style={{ marginBottom: '10px' }} />
+              <Skeleton width="80%" height={16} style={{ marginBottom: '8px' }} />
+              <Skeleton width="60%" height={14} style={{ marginBottom: '15px' }} />
+              <Skeleton width={40} height={12} />
+            </div>
+          ))}
         </div>
       </div>
     );
@@ -267,9 +179,9 @@ const SelectProfessional = () => {
     return (
       <div className="select-professional-container">
         <h2>Select professional</h2>
-        <div className="error-container">
-          <p>Error loading professionals: {error}</p>
-          <button onClick={() => window.location.reload()}>Try Again</button>
+        <div className="info-container error-state">
+          <p className="error-message">{error}</p>
+          <button onClick={() => window.location.reload()} className="retry-button">Try Again</button>
         </div>
       </div>
     );
@@ -280,18 +192,7 @@ const SelectProfessional = () => {
       <div className="select-professional-container">
         <h2>Select professional</h2>
         <div className="info-container">
-          <p>Please select services first</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (professionals.length === 0) {
-    return (
-      <div className="select-professional-container">
-        <h2>Select professional</h2>
-        <div className="info-container">
-          <p>No professionals available for the selected service</p>
+          <p>Please select services first to see available professionals.</p>
         </div>
       </div>
     );
@@ -311,7 +212,6 @@ const SelectProfessional = () => {
             onClick={() => handleProfessionalSelect(pro)}
           >
             {pro.icon && <div className="icon-circle">{pro.icon}</div>}
-
             {pro.image && (
               <div className="image-circle">
                 <img src={pro.image} alt={pro.name} />
@@ -322,9 +222,8 @@ const SelectProfessional = () => {
                 )}
               </div>
             )}
-
-            {pro.letter && <div className="letter-circle">{pro.letter}</div>}
-
+            {!pro.icon && !pro.image && pro.letter && <div className="letter-circle">{pro.letter}</div>}
+            
             <div className="name-text">{pro.name}</div>
             {pro.subtitle && (
               <div className="subtitle-text">{pro.subtitle}</div>
@@ -340,14 +239,7 @@ const SelectProfessional = () => {
         ))}
       </div>
 
-      {/* Bottom Bar for mobile */}
-      {typeof window !== "undefined" &&
-        window.innerWidth <= 600 &&
-        selectedServices.length > 0 && (
-          <ServiceBottomBar currentStep={currentStep} navigate={navigate} />
-        )}
-
-      {/* Bottom Bar for desktop - always show if services selected */}
+      {/* Render ServiceBottomBar ONCE. Its visibility is controlled by CSS media queries. */}
       {selectedServices.length > 0 && (
         <ServiceBottomBar currentStep={currentStep} navigate={navigate} />
       )}
@@ -355,7 +247,7 @@ const SelectProfessional = () => {
   );
 };
 
-// Bottom Bar Component
+// ServiceBottomBar component
 function ServiceBottomBar({ currentStep = 2, navigate }) {
   const [selectedServices, setSelectedServices] = React.useState([]);
 
@@ -379,28 +271,22 @@ function ServiceBottomBar({ currentStep = 2, navigate }) {
     0
   );
 
-  const canContinue = () => selectedServices.length > 0;
+  const canContinue = () => {
+    // This canContinue logic should match the one in LayoutWithBooking.jsx for step 2
+    bookingFlow.load(); // Ensure latest data
+    if (!bookingFlow.selectedServices || bookingFlow.selectedServices.length === 0) {
+        return false;
+    }
+    // Check if a professional is selected for the *first* service
+    const firstServiceId = bookingFlow.selectedServices[0]?._id;
+    return !!(firstServiceId && bookingFlow.selectedProfessionals && bookingFlow.selectedProfessionals[firstServiceId]);
+  };
 
   const handleContinue = () => {
-    switch (currentStep) {
-      case 1:
-        if (canContinue()) {
-          navigate("/professionals");
-        } else {
-          alert("Please select at least one service.");
-        }
-        break;
-      case 2:
+    if (canContinue()) {
         navigate("/time");
-        break;
-      case 3:
-        navigate("/payment");
-        break;
-      case 4:
-        alert("Complete payment logic here.");
-        break;
-      default:
-        break;
+    } else {
+        alert("Please select a professional."); // Using alert here, consider Swal if appropriate
     }
   };
 
@@ -414,7 +300,7 @@ function ServiceBottomBar({ currentStep = 2, navigate }) {
         onClick={handleContinue}
         disabled={!canContinue()}
       >
-        {currentStep === 4 ? "Complete Booking" : "Continue"}
+        Continue 
       </button>
     </div>
   );

@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { bookingFlow, apiUtils } from './services/api';
-import './Layout.css';
-import { HeaderTitleProvider, useHeaderTitle } from './Service/HeaderTitleContext';
-import { useAuth } from './Service/Context';
-import alloraLogo from './assets/allora-logo-header.svg';
-import Swal from 'sweetalert2';
+import './Layout.css'; // Assuming this CSS file exists
+import { HeaderTitleProvider, useHeaderTitle } from './Service/HeaderTitleContext'; // Assuming this context exists
+import { useAuth } from './Service/Context'; // Assuming this context exists
+import alloraLogo from './assets/allora-logo-header.svg'; // Assuming logo asset exists
+import Swal from 'sweetalert2'; // Assuming SweetAlert2 is installed
 
+// ProfileIcon component - No changes
 const ProfileIcon = () => (
   <svg className="profile-avatar" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
     <circle cx="20" cy="20" r="20" fill="#e0e0e0" />
@@ -15,12 +16,12 @@ const ProfileIcon = () => (
   </svg>
 );
 
+// GlobalHeader component - No changes
 const GlobalHeader = () => {
   const { headerTitle } = useHeaderTitle();
   const { user, isAuthenticated, logout } = useAuth();
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
-  // Close dropdown on outside click
   useEffect(() => {
     if (!dropdownOpen) return;
     const handleClick = (e) => {
@@ -68,8 +69,6 @@ const GlobalHeader = () => {
             )}
           </div>
           <div className="dropdown-content">
-            {/* <Link to="/profile" onClick={() => setDropdownOpen(false)}>Profile</Link>
-            <Link to="/orders" onClick={() => setDropdownOpen(false)}>Orders</Link> */}
             <Link to="/client-profile" onClick={() => setDropdownOpen(false)}>Profile</Link>
             
             <button onClick={() => { logout(); setDropdownOpen(false); }}>Logout</button>
@@ -84,8 +83,9 @@ const LayoutWithBooking = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [currentStep, setCurrentStep] = useState(1);
-  const [selectedService, setSelectedService] = useState(null);
-  const [summaryKey, setSummaryKey] = useState(0);
+  const [selectedService, setSelectedService] = useState(null); // Managed here
+  const [selectedProfessional, setSelectedProfessional] = useState(null); // Managed here
+  const [summaryKey, setSummaryKey] = useState(0); // To force re-render of summary
 
   // Define the booking flow steps
   const steps = [
@@ -100,34 +100,55 @@ const LayoutWithBooking = ({ children }) => {
     const currentPath = location.pathname;
     const stepIndex = steps.findIndex(step => step.path === currentPath);
     setCurrentStep(stepIndex >= 0 ? stepIndex + 1 : 1);
-  }, [location.pathname]);
+  }, [location.pathname, steps]); // Add steps to dependency array for completeness
 
-  // Load selected service from booking flow
+  // Load selected booking data from booking flow and update local states
   useEffect(() => {
     const loadBookingData = () => {
       console.log('Loading booking data...');
       bookingFlow.load(); // Load data into bookingFlow object
       console.log('Booking flow data:', bookingFlow);
+
+      // Update selectedService state
       if (bookingFlow.selectedServices && bookingFlow.selectedServices.length > 0) {
-        console.log('Setting selected services:', bookingFlow.selectedServices);
-        setSelectedService(bookingFlow.selectedServices[0]); // Keep for backward compatibility
+        setSelectedService(bookingFlow.selectedServices[0]);
       } else {
-        console.log('No services in booking flow, clearing selected service');
         setSelectedService(null);
       }
-      // Force re-render of the booking summary
+
+      // Update selectedProfessional state from bookingFlow for the *first* service
+      if (bookingFlow.selectedServices && bookingFlow.selectedServices.length > 0) {
+        const firstServiceId = bookingFlow.selectedServices[0]._id;
+        if (bookingFlow.selectedProfessionals && bookingFlow.selectedProfessionals[firstServiceId]) {
+          setSelectedProfessional(bookingFlow.selectedProfessionals[firstServiceId]);
+        } else {
+          // If no specific professional is chosen for the current service, default to "Any professional"
+          // This ensures `selectedProfessional` is never null if services are selected.
+          setSelectedProfessional({
+            id: "any",
+            name: "Any professional",
+            subtitle: "for maximum availability",
+            icon: "👥",
+            isAvailable: true,
+          });
+        }
+      } else {
+        setSelectedProfessional(null); // No service selected, so no professional context
+      }
+
+      // Force re-render of the booking summary to reflect latest changes
       setSummaryKey(k => k + 1);
     };
     
+    // Initial load
     loadBookingData();
     
-    // Listen for changes in booking flow
+    // Event listeners for booking flow changes
     const handleStorageChange = () => {
       console.log('Storage changed, reloading booking data...');
       loadBookingData();
     };
     
-    // Listen for custom booking flow changes
     const handleBookingFlowChange = () => {
       console.log('Booking flow change event received, reloading data...');
       loadBookingData();
@@ -140,32 +161,29 @@ const LayoutWithBooking = ({ children }) => {
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('bookingFlowChange', handleBookingFlowChange);
     };
-  }, []);
+  }, []); 
 
   const handleContinue = () => {
+    // Before navigating, check if canContinue logic allows
+    if (!canContinue()) {
+        // canContinue() already handles the alert/Swal messages.
+        // This outer check prevents navigation if the inner conditions are not met.
+        return; 
+    }
+
     switch (currentStep) {
       case 1: // Service selection
-        if (bookingFlow.selectedServices && bookingFlow.selectedServices.length > 0) {
-          navigate('/professionals');
-        } else {
-          Swal.fire({
-            title: 'Service Required',
-            text: 'Please select at least one service first',
-            icon: 'warning',
-            confirmButtonText: 'OK',
-            timer: 3000,
-            showConfirmButton: true
-          });
-        }
+        navigate('/professionals');
         break;
       case 2: // Professional selection
+        // The selectedProfessional state in Layout is already updated via useEffect
+        // based on bookingFlow. No need to explicitly set state here again.
         navigate('/time');
         break;
       case 3: // Time selection
         navigate('/payment');
         break;
       case 4: // Payment
-        // Handle payment completion
         Swal.fire({
           title: 'Payment Step',
           text: 'Payment step - implement payment logic',
@@ -182,8 +200,8 @@ const LayoutWithBooking = ({ children }) => {
 
   const handleBack = () => {
     switch (currentStep) {
-      case 1: // Service selection
-        // Go back to main page or previous section
+      case 1: 
+        navigate('/'); // Go to home if this is the first step
         break;
       case 2: // Professional selection
         navigate('/');
@@ -200,40 +218,72 @@ const LayoutWithBooking = ({ children }) => {
   };
 
   const canContinue = () => {
+    // Always load the latest state from bookingFlow before checking
+    bookingFlow.load(); 
+
     switch (currentStep) {
-      case 1:
-        return bookingFlow.selectedServices && bookingFlow.selectedServices.length > 0;
-      case 2:
-        bookingFlow.load();
-        // Check if all services have professionals selected
+      case 1: // Service selection
         if (!bookingFlow.selectedServices || bookingFlow.selectedServices.length === 0) {
+          Swal.fire({
+            title: 'Service Required',
+            text: 'Please select at least one service first.',
+            icon: 'warning',
+            confirmButtonText: 'OK',
+            timer: 3000,
+            showConfirmButton: true
+          });
           return false;
         }
-        // Check if we have professionals selected for all services
-        return bookingFlow.selectedProfessionals && Object.keys(bookingFlow.selectedProfessionals).length > 0;
-      case 3:
-        bookingFlow.load();
-        return bookingFlow.selectedTimeSlot !== null;
-      case 4:
-        return true; // Payment can always proceed
+        return true;
+      case 2: // Professional selection
+        if (!bookingFlow.selectedServices || bookingFlow.selectedServices.length === 0) {
+          Swal.fire({
+            title: 'Service Required',
+            text: 'Please select a service first.', // Should ideally not be reached if previous step is enforced
+            icon: 'warning',
+            confirmButtonText: 'OK',
+            timer: 3000,
+            showConfirmButton: true
+          });
+          return false;
+        }
+        // Check if a professional is selected for the *first* service
+        const firstServiceId = bookingFlow.selectedServices[0]?._id;
+        if (!firstServiceId || !bookingFlow.selectedProfessionals || !bookingFlow.selectedProfessionals[firstServiceId]) {
+          Swal.fire({
+            title: 'Professional Required',
+            text: 'Please select a professional for your service.',
+            icon: 'warning',
+            confirmButtonText: 'OK',
+            timer: 3000,
+            showConfirmButton: true
+          });
+          return false;
+        }
+        return true;
+      case 3: // Time selection
+        if (!bookingFlow.selectedTimeSlot) {
+          Swal.fire({
+            title: 'Time Slot Required',
+            text: 'Please select an available time slot.',
+            icon: 'warning',
+            confirmButtonText: 'OK',
+            timer: 3000,
+            showConfirmButton: true
+          });
+          return false;
+        }
+        return true;
+      case 4: // Payment - always allow
+        return true; 
       default:
         return false;
     }
   };
 
+  // getStepTitle remains unchanged
   const getStepTitle = () => {
-    switch (currentStep) {
-      case 1:
-        return 'Select Service';
-      case 2:
-        return 'Choose Professional';
-      case 3:
-        return 'Select Time';
-      case 4:
-        return 'Payment';
-      default:
-        return 'Booking';
-    }
+    return steps[currentStep - 1]?.label || 'Booking';
   };
 
   return (
@@ -242,8 +292,45 @@ const LayoutWithBooking = ({ children }) => {
         <GlobalHeader />
         <div className="layout-with-booking">
           <div className="main-content">
-            <div className="page-header" />
-            {children}
+            <div className="page-header" /> 
+            {/* This is where you render your main content components (Services, Professionals, Time, Payment)
+              based on `location.pathname`. You should use React Router's <Routes> and <Route> here.
+              For example:
+              <Routes>
+                  <Route path="/" element={<Services />} />
+                  <Route path="/professionals" element={<ProfessionalsUpdated />} />
+                  <Route path="/time" element={<Time selectedService={selectedService} selectedProfessional={selectedProfessional} />} />
+                  <Route path="/payment" element={<Payment />} />
+              </Routes>
+              
+              The `children` prop approach you have can work if you're passing a single child
+              that changes with routing, but directly using <Routes> is more explicit and common.
+              
+              For the current `children` pattern, `React.cloneElement` is used to pass props.
+              It's important that the components rendered as `children` are the actual components
+              like <Time /> in your <App /> or parent routing setup.
+            */}
+            {React.Children.map(children, child => {
+              if (React.isValidElement(child)) {
+                // Check child component name to pass specific props
+                // Ensure the component names match your imports/exports (e.g., 'Time' or 'SelectProfessional')
+                if (child.type && child.type.name === 'Time') {
+                    return React.cloneElement(child, {
+                        selectedService: selectedService, // Pass the service from Layout's state
+                        selectedProfessional: selectedProfessional, // Pass the professional from Layout's state
+                        // onTimeSelect callback is handled by Time internally updating bookingFlow
+                    });
+                }
+                if (child.type && child.type.name === 'SelectProfessional') { // Assuming your ProfessionalsUpdated is named SelectProfessional
+                    return React.cloneElement(child, {
+                         selectedDate: bookingFlow.load().selectedDate ? new Date(bookingFlow.load().selectedDate) : new Date(),
+                         selectedServices: bookingFlow.selectedServices || [],
+                         // onProfessionalSelect is handled internally by SelectProfessional updating bookingFlow
+                    });
+                }
+              }
+              return child; // Render other children as-is (e.g., Services or Payment)
+            })}
           </div>
           <div className="booking-sidebar">
             <div className="booking-summary" key={summaryKey}>
@@ -251,7 +338,7 @@ const LayoutWithBooking = ({ children }) => {
               {bookingFlow.selectedServices && bookingFlow.selectedServices.length > 0 ? (
                 <div className="selected-services-scroll">
                   <div className="selected-services">
-                    {bookingFlow.selectedServices.map((service, index) => (
+                    {bookingFlow.selectedServices.map((service) => ( // Removed index as it's not used
                       <div key={service._id} className="selected-service">
                         <div className="service-header">
                           <h4>{service.name}</h4>
@@ -260,7 +347,7 @@ const LayoutWithBooking = ({ children }) => {
                             onClick={() => {
                               bookingFlow.removeService(service._id);
                               window.dispatchEvent(new CustomEvent('bookingFlowChange'));
-                              setSummaryKey(k => k + 1); // Force re-render
+                              // Optionally, if removing a service invalidates professional/time, reset them here
                             }}
                             title="Remove service"
                           >
@@ -285,6 +372,29 @@ const LayoutWithBooking = ({ children }) => {
                               }
                             </span>
                           </div>
+                          {/* Display selected professional here */}
+                          {bookingFlow.selectedProfessionals && bookingFlow.selectedProfessionals[service._id] && (
+                            <div className="detail-item">
+                              <span className="label">Professional:</span>
+                              <span className="value">
+                                {bookingFlow.selectedProfessionals[service._id].name}
+                                {/* Show position/subtitle only if it's a specific professional, not "Any professional" */}
+                                {bookingFlow.selectedProfessionals[service._id].id !== 'any' &&
+                                 (bookingFlow.selectedProfessionals[service._id].subtitle || bookingFlow.selectedProfessionals[service._id].position) && (
+                                    <span> ({bookingFlow.selectedProfessionals[service._id].subtitle || bookingFlow.selectedProfessionals[service._id].position})</span>
+                                )}
+                              </span>
+                            </div>
+                          )}
+                           {/* Display selected date and time */}
+                          {bookingFlow.selectedDate && bookingFlow.selectedTimeSlot && (
+                            <div className="detail-item">
+                              <span className="label">Date & Time:</span>
+                              <span className="value">
+                                {new Date(bookingFlow.selectedDate).toLocaleDateString()} at {bookingFlow.selectedTimeSlot}
+                              </span>
+                            </div>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -331,7 +441,7 @@ const LayoutWithBooking = ({ children }) => {
                     onClick={handleContinue}
                     disabled={!canContinue()}
                   >
-                    {currentStep === 4 ? 'Complete Booking' : 'Continue'}
+                    {currentStep === steps.length ? 'Complete Booking' : 'Continue'}
                   </button>
                 </div>
               </div>

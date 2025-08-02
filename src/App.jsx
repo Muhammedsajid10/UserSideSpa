@@ -5,8 +5,8 @@ import viteLogo from "/vite.svg";
 import "./App.css";
 import "bootstrap/dist/css/bootstrap.min.css";
 import Services from "./pages/Services";
-import Time from "./pages/Time";
-import Professional from "./pages/Professionals";
+// import Time from "./pages/Time";
+// import Professional from "./pages/Professionals";
 import Payment from "./pages/Payment";
 import Button from "./pages/Button";
 import Layout from "./Layout";
@@ -36,7 +36,7 @@ import VerifyEmailPage from './pages/VerifyEmailPage';
 // Import the new/updated components
 import BookingFlow from "./pages/BookingFlow";
 import SelectProfessional from "./pages/ProfessionalsUpdated";
-import TimeWithAPI from "./pages/TimeWithAPI";
+// import TimeWithAPI from "./pages/TimeWithAPI";
 import LayoutWithBooking from "./LayoutWithBooking";
 
 // Import Stripe payment components
@@ -51,6 +51,7 @@ import ProtectedRoute from "./Components/ProtectedRoute";
 import ProfilePage from './pages/ProfilePage';
 import OrdersPage from './pages/OrdersPage';
 import ClientProfilePage from './pages/ClientProfilePage';
+import Time from "./pages/TimeUpdated";
 
 function App() {
   const [count, setCount] = useState(0);
@@ -80,7 +81,7 @@ function App() {
           
           <Route path="/time" element={
             <LayoutWithBooking>
-              <TimeWithAPI />
+              <Time />
             </LayoutWithBooking>
           } />
           
@@ -139,7 +140,7 @@ function App() {
           
           {/* Demo/test routes for updated components */}
           <Route path="/professionals-demo" element={<SelectProfessional />} />
-          <Route path="/time-demo" element={<TimeWithAPI />} />
+          <Route path="/time-demo" element={<Time />} />
           
           {/* Legacy routes (commented out) */}
            {/* <Route path="/" element={<Visit/>} /> */}
